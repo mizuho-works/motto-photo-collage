@@ -2,11 +2,17 @@
 const $ = id => document.getElementById(id);
 const canvas = $('preview');
 const ctx = canvas.getContext('2d');
+const MAX_PHOTOS = 12;
 const state = { photos: [], ratio: 1, loading: false };
 const status = message => { $('status').textContent = message; };
 
 function cells(count, width, height, gap, layout) {
   if (!count) return [];
+  if (layout === '3x4') {
+    const w = (width - gap * 4) / 3;
+    const h = (height - gap * 5) / 4;
+    return Array.from({ length: count }, (_, i) => ({ x: gap + (i % 3) * (w + gap), y: gap + Math.floor(i / 3) * (h + gap), w, h }));
+  }
   if (layout === 'hero' && count > 1) {
     const left = (width - gap * 3) * .6;
     const right = width - gap * 3 - left;
@@ -41,7 +47,7 @@ function render() {
   });
   $('empty').hidden = state.photos.length > 0;
   $('save').disabled = !state.photos.length || state.loading;
-  $('count').textContent = `${state.photos.length} / 9`;
+  $('count').textContent = `${state.photos.length} / ${MAX_PHOTOS}`;
 }
 
 function thumbnails() {
@@ -69,8 +75,8 @@ $('photos').addEventListener('change', async event => {
   if (state.loading) return;
   const files = Array.from(event.target.files);
   event.target.value = '';
-  const available = 9 - state.photos.length;
-  if (!available) { status('写真は最大9枚です。削除してから追加してください。'); return; }
+  const available = MAX_PHOTOS - state.photos.length;
+  if (!available) { status('写真は最大12枚です。削除してから追加してください。'); return; }
   state.loading = true; $('photos').disabled = true; render(); status('写真を読み込んでいます…');
   let failed = 0;
   for (const file of files.slice(0, available)) {
@@ -81,7 +87,7 @@ $('photos').addEventListener('change', async event => {
     } catch { URL.revokeObjectURL(url); failed++; }
   }
   state.loading = false; $('photos').disabled = false; thumbnails(); render();
-  status(failed ? `${failed}枚を読み込めませんでした。JPEGやPNGでお試しください。` : files.length > available ? '9枚まで追加しました。' : '写真を追加しました。');
+  status(failed ? `${failed}枚を読み込めませんでした。JPEGやPNGでお試しください。` : files.length > available ? '12枚まで追加しました。' : '写真を追加しました。');
 });
 document.querySelectorAll('[data-ratio]').forEach(button => button.onclick = () => {
   state.ratio = Number(button.dataset.ratio);
