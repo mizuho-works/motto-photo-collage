@@ -1,33 +1,17 @@
 <!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f5f0">
-  <meta name="description" content="写真を選んで、並べて、保存。スマホで使える無料の写真コラージュ。写真は端末内だけで処理します。">
-  <title>motto — 写真を、ひとつに。</title>
-  <link rel="stylesheet" href="style.css?v=12">
-</head>
-<body>
-  <header><a class="logo" href="./">motto<span>●</span></a><span class="tagline">小さな思い出を、ひとつに。</span></header>
-  <main>
-    <section class="intro"><p class="eyebrow">YOUR MOMENTS, TOGETHER</p><h1>写真を、<em>ひとつに。</em></h1><p>お気に入りを並べて、あなただけの一枚に。</p></section>
-    <div class="workspace">
-      <section class="preview-panel" aria-label="コラージュのプレビュー">
-        <div class="preview-top"><span><i></i> LIVE PREVIEW</span><span id="dimensions">1600 × 1600 px</span></div>
-        <div class="canvas-wrap"><canvas id="preview" width="1600" height="1600" aria-label="コラージュ画像"></canvas><div id="empty"><div class="empty-icon">▧</div><h2>ここに、あなたの思い出を。</h2><p>写真を選ぶと、コラージュができあがります</p><label class="button" for="photos">＋ 写真を選ぶ</label><small>JPEG・PNG・WebPなど / 最大12枚</small></div></div>
-        <p class="preview-note">✦ 写真を選び直して、何度でもつくれます</p>
-      </section>
-      <section class="controls" aria-label="コラージュの設定">
-        <div class="control-heading"><h2>つくる</h2><span>3つのステップで完成</span></div>
-        <div class="step"><h3><b>01</b> 写真を選ぶ <span id="count">0 / 12</span></h3><label class="upload" for="photos"><strong>＋ 写真を追加</strong><span>カメラロールから選択</span></label><input type="file" id="photos" accept="image/*" multiple hidden><div id="thumbnails" class="thumbnails"></div><p class="hint">写真の矢印で順番を変更できます</p></div>
-        <div class="step"><h3><b>02</b> かたちを整える</h3><label class="field-label">サイズ</label><div class="segments" id="ratios"><button type="button" data-ratio="1" aria-pressed="true">□ 正方形</button><button type="button" data-ratio="0.8" aria-pressed="false">▯ 縦長 4:5</button><button type="button" data-ratio="0.75" aria-pressed="false">▯ 縦長 3:4</button><button type="button" data-ratio="1.5" aria-pressed="false">▭ 横長</button></div><label class="field-label" for="layout">レイアウト</label><select id="layout"><option value="auto">おまかせ</option><option value="2">2列のグリッド</option><option value="3">3列のグリッド</option><option value="3x4">縦4 × 横3（12枚）</option><option value="hero">大きな1枚 ＋ 小さな写真</option></select><div class="range-label"><label for="gap">余白</label><output id="gap-value">16</output></div><input type="range" id="gap" min="0" max="64" value="16"><div class="range-label"><label for="background">背景色</label><input type="color" id="background" value="#ffffff"></div></div>
-        <div class="step last"><h3><b>03</b> 思い出を保存</h3><button id="save" class="button save" disabled>↓ 画像を保存</button><p class="hint center">高画質のPNGで保存できます</p></div>
-      </section>
-    </div>
-    <p id="status" role="status" aria-live="polite"></p>
-    <footer><span class="lock">♧</span> 写真はこの端末内で処理されます。サーバーには送信しません。<span class="footer-brand">MADE FOR YOUR MOMENTS</span></footer>
-  </main>
-  <script src="app.js?v=12" defer></script>
-</body>
-</html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#191919"><meta name="description" content="最大12枚の写真を自由に並べ、拡大縮小・位置調整できる写真コラージュ。"><title>motto — 写真コラージュ</title><link rel="stylesheet" href="style.css?v=editor1"></head><body>
+<main class="app">
+<header class="toolbar"><button id="settings" class="icon-button" aria-label="保存設定">⚙<small>設定</small></button><button id="ratio-top" class="ratio-button" aria-label="全体の比率を変更">▾ <strong id="ratio-label">4:3</strong></button><button id="save" class="icon-button" aria-label="画像を保存" disabled><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3v18m-7-7 7 7 7-7M4 22v7h24v-7"/></svg><small>保存</small></button></header>
+<section class="preview-area" aria-label="コラージュプレビュー"><div class="canvas-wrap"><canvas id="preview" width="1600" height="1200" tabindex="0" aria-label="枠をタップして写真を追加・編集。写真一覧からも編集できます。"></canvas></div><p class="preview-hint">枠をタップして写真を追加・編集</p></section>
+<section class="editor-panel" aria-label="コラージュの編集"><div class="panel-actions"><span id="photo-count">0 / 12枚</span><label class="pill secondary" for="photos">＋ 写真を追加</label><button class="pill" id="custom-open">カスタム</button><button class="pill" id="create-open">＋ 作成</button></div><input type="file" id="photos" accept="image/*" multiple hidden>
+<section id="panel-frames" class="tool-panel" aria-label="フレーム一覧"><div id="frame-gallery" class="frame-gallery"></div></section>
+<section id="panel-arrange" class="tool-panel" aria-label="写真の配置" hidden><div class="section-heading"><h2>写真を並べる</h2><button id="shuffle" class="text-button">シャッフル</button></div><p class="help">写真をタップして調整。矢印で順番を変えられます。</p><div id="thumbnails" class="thumbnails"></div></section>
+<section id="panel-spacing" class="tool-panel settings-panel" aria-label="外枠と余白" hidden><h2>外枠と余白</h2><div class="range-heading"><label for="outer">外側の余白</label><output id="outer-value">16 px</output></div><input type="range" id="outer" min="0" max="100" value="16"><div class="range-heading"><label for="gap">写真の間隔</label><output id="gap-value">16 px</output></div><input type="range" id="gap" min="0" max="64" value="16"><div class="range-heading"><label for="rounding">角の丸み</label><output id="rounding-value">0 px</output></div><input type="range" id="rounding" min="0" max="80" value="0"></section>
+<section id="panel-background" class="tool-panel settings-panel" aria-label="背景色" hidden><h2>背景</h2><p class="help">余白や写真を縮小した部分の色を変えます。</p><div id="swatches" class="swatches"></div><label class="color-label" for="background">好きな色を選ぶ<input type="color" id="background" value="#ffffff"></label></section>
+<section id="panel-ratio" class="tool-panel settings-panel" aria-label="全体の比率" hidden><h2>全体の比率</h2><div id="ratios" class="ratio-options"><button data-ratio="1.3333333333333333" data-label="4:3" aria-pressed="true">4:3<span>横長</span></button><button data-ratio="0.75" data-label="3:4" aria-pressed="false">3:4<span>縦長</span></button><button data-ratio="1" data-label="1:1" aria-pressed="false">1:1<span>正方形</span></button><button data-ratio="0.8" data-label="4:5" aria-pressed="false">4:5<span>縦長</span></button><button data-ratio="1.5" data-label="3:2" aria-pressed="false">3:2<span>横長</span></button><button data-ratio="0.5625" data-label="9:16" aria-pressed="false">9:16<span>ストーリー</span></button></div></section>
+<nav id="counts" class="counts" aria-label="写真の枚数"></nav><nav class="tools" aria-label="編集ツール"><button data-tool="arrange" aria-pressed="false"><span>▧</span>簡単配置</button><button data-tool="spacing" aria-pressed="false"><span>▢</span>外枠余白</button><button data-tool="frames" aria-pressed="true"><span>▦</span>フレーム</button><button data-tool="background" aria-pressed="false"><span>▨</span>背景</button><button data-tool="ratio" aria-pressed="false"><span>↔</span>比率</button></nav></section>
+<p id="status" role="status" aria-live="polite"></p><footer>motto <span>写真は端末内で処理。サーバーには送信しません。</span></footer></main>
+<dialog id="photo-editor" aria-labelledby="edit-title"><div class="dialog-heading"><h2 id="edit-title">写真を調整</h2><button id="edit-done" class="pill">完了</button></div><p class="help">ドラッグで移動・2本指で拡大縮小</p><div class="edit-stage"><canvas id="edit-canvas" aria-label="写真の位置調整"></canvas></div><div class="range-heading"><label for="zoom">拡大・縮小</label><output id="zoom-value">100%</output></div><input type="range" id="zoom" min="25" max="400" value="100"><div class="range-heading"><label for="position-x">左右の位置</label></div><input type="range" id="position-x" min="-100" max="100" value="0"><div class="range-heading"><label for="position-y">上下の位置</label></div><input type="range" id="position-y" min="-100" max="100" value="0"><div class="dialog-actions"><button id="edit-reset" class="text-button">調整をリセット</button><button id="edit-replace" class="text-button">写真を変更</button><button id="edit-delete" class="text-button danger">削除</button></div></dialog>
+<dialog id="custom-dialog" aria-labelledby="custom-title"><div class="dialog-heading"><h2 id="custom-title">カスタムフレーム</h2><button class="close-button" data-close="custom-dialog" aria-label="閉じる">×</button></div><p class="help">縦の段数と横の列数を指定します（合計12枚まで）。</p><form id="custom-form"><div class="custom-fields"><label>縦（段）<input id="custom-rows" type="number" min="1" max="12" value="4" required></label><span>×</span><label>横（列）<input id="custom-cols" type="number" min="1" max="12" value="3" required></label></div><p id="custom-error" role="alert"></p><button class="pill wide" type="submit">このフレームで作成</button></form></dialog>
+<dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><h2 id="settings-title">保存設定</h2><button class="close-button" data-close="settings-dialog" aria-label="閉じる">×</button></div><label class="field-label" for="resolution">画像の長辺</label><select id="resolution"><option value="1600">1600 px（標準）</option><option value="2400">2400 px（高画質）</option></select><p class="help">PNG形式で保存。空の枠は背景色になります。</p><p class="help">対応スマホでは共有メニューの「画像を保存」を選べます。</p><button id="settings-save" class="pill wide">画像を保存</button></dialog>
+<script src="app.js?v=editor1" defer></script></body></html>
