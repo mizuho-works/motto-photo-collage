@@ -1,10 +1,48 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const MAX_PHOTOS = 12;
+const cameraIcon = new Image();
+cameraIcon.src = 'icons/camera-white.svg';
+cameraIcon.onload = () => render();
 const canvas = $('preview');
-const state = { photos: Array(MAX_PHOTOS).fill(null), count: 12, ratio: 4 / 3, frame: 'grid-3', custom: null, loading: false, editing: -1, target: null };
-const status = message => { $('status').textContent = message; };
+const state = { photos: Array(MAX_PHOTOS).fill(null), count: 12, ratio: 4 / 3, frame: 'grid-3', custom: null, loading: false, editing: -1, target: null, tool: null };
+const status = message => { $('status').textContent = message; if (message) setTimeout(() => { if ($('status').textContent === message) $('status').textContent = ''; }, 4500); };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+const imageUrls = new Set();
+const history = []; let historyIndex = -1;
+function snapshot() {
+  return { photos: state.photos.map(photo => photo ? { ...photo } : null), count: state.count, ratio: state.ratio, frame: state.frame, custom: state.custom ? { ...state.custom } : null,
+    controls: Object.fromEntries(['outer', 'gap', 'rounding', 'background'].map(id => [id, $(id).value])) };
+}
+function historyKey(value) { return JSON.stringify(value, (key, v) => key === 'image' ? undefined : v); }
+function updateHistoryButtons() {
+  $('undo').disabled = state.loading || historyIndex <= 0;
+  $('redo').disabled = state.loading || historyIndex >= history.length - 1;
+}
+function recordHistory() {
+  const value = snapshot();
+  if (historyIndex >= 0 && historyKey(value) === historyKey(history[historyIndex])) { updateHistoryButtons(); return; }
+  history.splice(historyIndex + 1); history.push(value);
+  if (history.length > 30) history.shift();
+  historyIndex = history.length - 1;
+  const used = new Set([...state.photos, ...history.flatMap(item => item.photos)].filter(Boolean).map(photo => photo.url));
+  for (const url of imageUrls) if (!used.has(url)) { URL.revokeObjectURL(url); imageUrls.delete(url); }
+  updateHistoryButtons();
+}
+function restoreHistory(direction) {
+  const index = historyIndex + direction;
+  if (state.loading || index < 0 || index >= history.length) return;
+  historyIndex = index; const value = history[index];
+  Object.assign(state, { photos: value.photos.map(photo => photo ? { ...photo } : null), count: value.count, ratio: value.ratio, frame: value.frame, custom: value.custom ? { ...value.custom } : null });
+  for (const [id, v] of Object.entries(value.controls)) { $(id).value = v; if ($(`${id}-value`)) $(`${id}-value`).value = `${v} px`; }
+  document.querySelectorAll('[data-ratio]').forEach(button => { const selected = Math.abs(Number(button.dataset.ratio) - state.ratio) < .00001; button.setAttribute('aria-pressed', String(selected)); if (selected) $('ratio-label').textContent = button.dataset.label; });
+  countButtons(); frameGallery(); updateSwatches(); render();
+  status(direction < 0 ? '元に戻しました。' : 'やり直しました。');
+}
+$('undo').onclick = () => restoreHistory(-1);
+$('redo').onclick = () => restoreHistory(1);
+for (const id of ['outer', 'gap', 'rounding', 'background']) $(id).addEventListener('change', recordHistory);
 
 function grid(n, cols) {
   const rows = Math.ceil(n / cols);
@@ -58,9 +96,7 @@ function drawPlaceholder(ctx, box, i) {
   const { x, y, w, h } = box;
   ctx.fillStyle = '#535353'; ctx.beginPath(); ctx.roundRect(x, y, w, h, 0); ctx.fill();
   const unit = Math.min(w / 7, h / 5, 45), cx = x + w / 2, cy = y + h / 2 - unit * .25;
-  ctx.fillStyle = '#fafafa'; ctx.beginPath(); ctx.roundRect(cx - unit, cy - unit * .6, unit * 2, unit * 1.2, unit * .2); ctx.fill();
-  ctx.fillRect(cx - unit * .45, cy - unit * .85, unit * .9, unit * .35);
-  ctx.fillStyle = '#535353'; ctx.beginPath(); ctx.arc(cx, cy, unit * .35, 0, Math.PI * 2); ctx.fill();
+  if (cameraIcon.complete && cameraIcon.naturalWidth) ctx.drawImage(cameraIcon, cx - unit, cy - unit, unit * 2, unit * 2);
   ctx.fillStyle = '#ddd'; ctx.textAlign = 'center'; ctx.font = `${Math.min(22, w / 11, h / 9)}px sans-serif`;
   ctx.fillText(`写真を選択 ${i + 1}`, cx, cy + unit * 1.4);
 }
@@ -78,20 +114,28 @@ function sizeCanvas(target, longest) {
 }
 function render() {
   sizeCanvas(canvas, 1600);
-  const maxHeight = Math.min(window.innerHeight * .48, 480);
-  canvas.parentElement.style.width = `min(100%, ${Math.round(maxHeight * state.ratio)}px)`;
+  const area = $('preview-area');
+  const availableWidth = Math.max(40, (area.clientWidth || window.innerWidth || 390) - 56);
+  const availableHeight = Math.max(40, (area.clientHeight || window.innerHeight * .55) - 28);
+  canvas.parentElement.style.width = `${Math.floor(Math.min(availableWidth, availableHeight * state.ratio))}px`;
   canvas.parentElement.style.aspectRatio = String(state.ratio);
   drawCollage(canvas, true);
   const filled = state.photos.slice(0, state.count).filter(Boolean).length;
   $('photo-count').textContent = `${filled} / ${state.count}枚`;
   $('save').disabled = !filled || state.loading;
   $('settings-save').disabled = !filled || state.loading;
+  updateHistoryButtons();
 }
 function showTool(name) {
+  state.tool = name;
   document.querySelectorAll('.tool-panel').forEach(panel => { panel.hidden = panel.id !== `panel-${name}`; });
   document.querySelectorAll('[data-tool]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tool === name)));
-  if (name === 'arrange') thumbnails();
+  $('panel-header').hidden = !name;
+  $('counts').hidden = name !== 'frames';
+  $('panel-title').textContent = ({ frames: 'フレーム', spacing: '外枠と余白', background: '背景', ratio: '全体の比率' })[name] || '';
+  render();
 }
+$('panel-close').onclick = () => showTool(null);
 function frameGallery() {
   const gallery = $('frame-gallery'); gallery.replaceChildren();
   const all = presets(state.count);
@@ -105,7 +149,7 @@ function frameGallery() {
       for (const [attr, value] of Object.entries({ x: b.x * 100 + 1.5, y: b.y * 100 + 1.5, width: Math.max(1, b.w * 100 - 3), height: Math.max(1, b.h * 100 - 3), rx: 3 })) rect.setAttribute(attr, value);
       svg.append(rect);
     });
-    button.append(svg); button.onclick = () => { state.frame = frame.id; frameGallery(); render(); }; gallery.append(button);
+    button.append(svg); button.onclick = () => { state.frame = frame.id; frameGallery(); render(); recordHistory(); }; gallery.append(button);
   }
 }
 function countButtons() {
@@ -114,39 +158,21 @@ function countButtons() {
     const button = document.createElement('button'); button.textContent = n; button.setAttribute('aria-label', `${n}枚のフレーム`); button.setAttribute('aria-pressed', String(state.count === n));
     button.onclick = () => {
       state.count = n; state.frame = `grid-${Math.min(n, 3)}`; state.custom = null;
-      countButtons(); frameGallery(); thumbnails(); render();
+      countButtons(); frameGallery(); render(); recordHistory();
       status(state.photos.slice(n).some(Boolean) ? '枠に収まらない写真は、枚数を戻すと再び表示されます。' : '');
     };
     $('counts').append(button);
   }
-}
-function thumbnails() {
-  $('thumbnails').replaceChildren();
-  state.photos.slice(0, state.count).forEach((photo, i) => {
-    if (!photo) return;
-    const item = document.createElement('div'); item.className = 'thumb';
-    const edit = document.createElement('button'); edit.className = 'thumb-edit'; edit.setAttribute('aria-label', `${i + 1}枚目の写真を調整`); edit.onclick = () => openEditor(i);
-    const img = document.createElement('img'); img.src = photo.url; img.alt = photo.name;
-    const label = document.createElement('span'); label.textContent = `${i + 1} · 調整`; edit.append(img, label);
-    const controls = document.createElement('div'); controls.className = 'thumb-controls';
-    for (const [text, direction] of [['←', -1], ['→', 1]]) {
-      const button = document.createElement('button'); button.textContent = text; button.disabled = i + direction < 0 || i + direction >= state.count;
-      button.setAttribute('aria-label', `${i + 1}枚目を${direction < 0 ? '前' : '後ろ'}へ移動`);
-      button.onclick = () => { [state.photos[i], state.photos[i + direction]] = [state.photos[i + direction], state.photos[i]]; thumbnails(); render(); };
-      controls.append(button);
-    }
-    item.append(edit, controls); $('thumbnails').append(item);
-  });
-  if (!$('thumbnails').children.length) { const p = document.createElement('p'); p.className = 'empty-photos'; p.textContent = '上の「写真を追加」から写真を選んでください。'; $('thumbnails').append(p); }
 }
 function selectFiles(index = null) { state.target = index; $('photos').click(); }
 canvas.addEventListener('click', event => {
   if (state.loading) return;
   const rect = canvas.getBoundingClientRect(), x = (event.clientX - rect.left) * canvas.width / rect.width, y = (event.clientY - rect.top) * canvas.height / rect.height;
   const i = boxesFor(canvas.width, canvas.height).findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+  showTool(null);
   if (i >= 0) state.photos[i] ? openEditor(i) : selectFiles(i);
 });
-canvas.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showTool('arrange'); } });
+canvas.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); const i = state.photos.slice(0, state.count).findIndex(Boolean); if (i >= 0) openEditor(i); else selectFiles(0); } });
 $('photos').addEventListener('change', async event => {
   if (state.loading) return;
   const files = Array.from(event.target.files); event.target.value = '';
@@ -155,6 +181,7 @@ $('photos').addEventListener('change', async event => {
   if (state.target !== null) slots.push(state.target);
   for (let i = 0; i < MAX_PHOTOS; i++) if (!state.photos[i] && !slots.includes(i)) slots.push(i);
   state.target = null;
+  showTool(null);
   if (!slots.length) { status('最大12枚です。写真をタップすると変更・削除できます。'); return; }
   state.loading = true; $('photos').disabled = true; render(); status('写真を読み込んでいます…');
   let failed = 0, loaded = 0;
@@ -162,12 +189,13 @@ $('photos').addEventListener('change', async event => {
     const url = URL.createObjectURL(file);
     try {
       const image = new Image(); image.src = url; await image.decode();
-      const i = slots[loaded]; if (state.photos[i]) URL.revokeObjectURL(state.photos[i].url);
+      const i = slots[loaded]; 
+      imageUrls.add(url);
       state.photos[i] = { image, url, name: file.name, zoom: 1, x: 0, y: 0 }; loaded++;
       if (i >= state.count) { state.count = i + 1; state.frame = `grid-${Math.min(state.count, 3)}`; state.custom = null; }
     } catch { URL.revokeObjectURL(url); failed++; }
   }
-  state.loading = false; $('photos').disabled = false; countButtons(); frameGallery(); thumbnails(); render();
+  state.loading = false; $('photos').disabled = false; countButtons(); frameGallery(); render(); recordHistory();
   status(failed ? `${failed}枚を読み込めませんでした。JPEG・PNGでお試しください。` : files.length > slots.length ? '最大12枚まで追加しました。' : '写真をタップすると拡大・縮小・位置調整ができます。');
 });
 $('photos').addEventListener('cancel', () => { state.target = null; });
@@ -185,15 +213,15 @@ function renderEditor() {
 }
 function openEditor(i) {
   if (state.loading) return;
-  state.editing = i; $('edit-title').textContent = `${i + 1}枚目の写真を調整`; renderEditor(); $('photo-editor').showModal();
+  showTool(null); state.editing = i; $('edit-title').textContent = `${i + 1}枚目の写真を調整`; renderEditor(); $('photo-editor').showModal();
 }
 for (const [id, field] of [['zoom', 'zoom'], ['position-x', 'x'], ['position-y', 'y']]) {
   $(id).addEventListener('input', () => { const photo = editPhoto(); if (photo) { photo[field] = Number($(id).value) / 100; renderEditor(); render(); } });
 }
 $('edit-done').onclick = () => $('photo-editor').close();
-$('photo-editor').addEventListener('close', () => { pointers.clear(); state.editing = -1; thumbnails(); });
+$('photo-editor').addEventListener('close', () => { pointers.clear(); state.editing = -1; recordHistory(); });
 $('edit-reset').onclick = () => { const photo = editPhoto(); if (photo) { Object.assign(photo, { zoom: 1, x: 0, y: 0 }); renderEditor(); render(); } };
-$('edit-delete').onclick = () => { const photo = editPhoto(); if (!photo) return; URL.revokeObjectURL(photo.url); state.photos[state.editing] = null; $('photo-editor').close(); thumbnails(); render(); status('写真を削除しました。'); };
+$('edit-delete').onclick = () => { const photo = editPhoto(); if (!photo) return; state.photos[state.editing] = null; $('photo-editor').close(); render(); status('写真を削除しました。'); };
 $('edit-replace').onclick = () => { const i = state.editing; $('photo-editor').close(); selectFiles(i); };
 const pointers = new Map(); let gesture = null;
 function startGesture() {
@@ -213,27 +241,26 @@ $('edit-canvas').addEventListener('pointermove', event => {
 });
 for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) $('edit-canvas').addEventListener(name, event => { pointers.delete(event.pointerId); startGesture(); });
 
-document.querySelectorAll('[data-tool]').forEach(button => { button.onclick = () => showTool(button.dataset.tool); });
+document.querySelectorAll('[data-tool]').forEach(button => { button.onclick = () => showTool(state.tool === button.dataset.tool ? null : button.dataset.tool); });
 $('ratio-top').onclick = () => { showTool('ratio'); $('panel-ratio').scrollIntoView({ block: 'nearest' }); };
 document.querySelectorAll('[data-ratio]').forEach(button => { button.onclick = () => {
   state.ratio = Number(button.dataset.ratio); $('ratio-label').textContent = button.dataset.label;
-  document.querySelectorAll('[data-ratio]').forEach(b => b.setAttribute('aria-pressed', String(b === button))); render();
+  document.querySelectorAll('[data-ratio]').forEach(b => b.setAttribute('aria-pressed', String(b === button))); render(); recordHistory();
 }; });
 for (const id of ['outer', 'gap', 'rounding']) $(id).addEventListener('input', () => { $(`${id}-value`).value = `${$(id).value} px`; render(); });
 function updateSwatches() { document.querySelectorAll('.swatch').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === $('background').value))); }
 for (const color of ['#ffffff', '#000000', '#535353', '#fff3e0', '#ffdce8', '#dceaff', '#dff2df', '#e6ddff']) {
   const button = document.createElement('button'); button.className = 'swatch'; button.style.background = color; button.dataset.color = color; button.setAttribute('aria-label', `背景色 ${color}`);
-  button.onclick = () => { $('background').value = color; updateSwatches(); render(); }; $('swatches').append(button);
+  button.onclick = () => { $('background').value = color; updateSwatches(); render(); recordHistory(); }; $('swatches').append(button);
 }
 $('background').addEventListener('input', () => { updateSwatches(); render(); });
-$('shuffle').onclick = () => { for (let i = state.count - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [state.photos[i], state.photos[j]] = [state.photos[j], state.photos[i]]; } thumbnails(); render(); status('写真の順番を入れ替えました。'); };
 function openCustom() { $('custom-error').textContent = ''; $('custom-dialog').showModal(); }
 $('custom-open').onclick = openCustom; $('create-open').onclick = openCustom;
 $('custom-form').addEventListener('submit', event => {
   event.preventDefault(); const rows = Number($('custom-rows').value), cols = Number($('custom-cols').value);
   if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1 || rows * cols > MAX_PHOTOS) { $('custom-error').textContent = '縦 × 横が1〜12枚になるように指定してください。'; return; }
   state.count = rows * cols; state.custom = { rows, cols }; state.frame = 'custom';
-  countButtons(); frameGallery(); thumbnails(); render(); showTool('frames'); $('custom-dialog').close(); status(`${rows}段 × ${cols}列のフレームを作成しました。`);
+  countButtons(); frameGallery(); render(); recordHistory(); showTool('frames'); $('custom-dialog').close(); status(`${rows}段 × ${cols}列のフレームを作成しました。`);
 });
 document.querySelectorAll('[data-close]').forEach(button => { button.onclick = () => $(button.dataset.close).close(); });
 $('settings').onclick = () => $('settings-dialog').showModal();
@@ -255,4 +282,4 @@ async function saveImage() {
 }
 $('save').onclick = saveImage; $('settings-save').onclick = () => { $('settings-dialog').close(); saveImage(); };
 window.addEventListener('resize', render);
-countButtons(); frameGallery(); updateSwatches(); render();
+countButtons(); frameGallery(); updateSwatches(); showTool(null); recordHistory();
