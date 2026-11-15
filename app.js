@@ -26,7 +26,7 @@ function cells(count, width, height, gap, layout) {
 }
 
 function render() {
-  canvas.width = state.ratio >= 1 ? 1600 : 1280;
+  canvas.width = state.ratio >= 1 ? 1600 : Math.round(1600 * state.ratio);
   canvas.height = Math.round(canvas.width / state.ratio);
   canvas.parentElement.style.aspectRatio = String(state.ratio);
   $('dimensions').textContent = `${canvas.width} × ${canvas.height} px`;
